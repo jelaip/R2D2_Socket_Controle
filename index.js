@@ -23,6 +23,10 @@ io.on('connection', (socket) => {
         console.log('user disconnected');
         socket.broadcast.emit('user disconnected');
     });
+    socket.on('image', (data) => {
+        console.log('Image reçue et transmise aux clients.');
+        io.emit('stream', data.image);
+    });
     socket.on('message', (msg) => {
         console.log('message: ' + msg);
         io.emit('message', msg);
