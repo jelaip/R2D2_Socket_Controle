@@ -32,6 +32,7 @@ io.on('connection', (socket) => {
         io.emit('message', msg);
     });
     socket.on('vitesse', (msg) => {
+        console.log('vitesse: ' + msg)
         io.emit('vitesse', msg);
     });
 })
