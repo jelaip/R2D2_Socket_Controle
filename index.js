@@ -31,6 +31,9 @@ io.on('connection', (socket) => {
         console.log('message: ' + msg);
         io.emit('message', msg);
     });
+    socket.on('vitesse', (msg) => {
+        io.emit('vitesse', msg);
+    });
 })
 server.listen(PORT, () => {
     console.log('Server ip : http://' +ip.address() +":" + PORT);
