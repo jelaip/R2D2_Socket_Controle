@@ -35,6 +35,10 @@ io.on('connection', (socket) => {
         console.log('vitesse: ' + msg)
         io.emit('vitesse', msg);
     });
+    socket.on('commandeMotor', (msg) => {
+        console.log('cmd motor: ' + msg)
+        io.emit('commandeMotor', msg);
+    });
 })
 server.listen(PORT, () => {
     console.log('Server ip : http://' +ip.address() +":" + PORT);
