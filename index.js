@@ -39,6 +39,14 @@ io.on('connection', (socket) => {
         console.log('cmd motor: ' + msg)
         io.emit('commandeMotor', msg);
     });
+    socket.on('ctrlCam', (cmd) => {
+        console.log(`Camera control command received: ${cmd}`);
+        if (cmd === 'pause' || cmd === 'resume') {
+            io.emit('ctrlCam', cmd);
+        } else {
+            console.error(`Invalid camera control command: ${cmd}`);
+        }
+    });
 })
 server.listen(PORT, () => {
     console.log('Server ip : http://' +ip.address() +":" + PORT);
