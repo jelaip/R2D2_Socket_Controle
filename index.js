@@ -47,6 +47,14 @@ io.on('connection', (socket) => {
             console.error(`Invalid camera control command: ${cmd}`);
         }
     });
+    socket.on('changeLed', (data) => {
+        console.log('Commande LED reçue :', data);
+        io.emit('changeLed', data);
+    });
+    socket.on('playSound', (data) => {
+        console.log('Commande Son reçue :', data);
+        io.emit('playSound', data);
+    });
 })
 server.listen(PORT, () => {
     console.log('Server ip : http://' +ip.address() +":" + PORT);
