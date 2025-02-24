@@ -84,6 +84,14 @@ app.get('/', (req, res) => {
     res.json('ip address: http://' + ip.address() + ':' + PORT);
 });
 
+app.get('/reset', (req, res) => {
+    robots.clear();
+    controllers.clear();
+    viewers.clear();
+    adminSocketId = null;
+    res.json({ message: 'Serveur réinitialisé' });
+})
+
 // 🚦 Gestion des connexions Socket.IO
 io.on('connection', (socket) => {
     console.log('Un client est connecté: ' + socket.id);
