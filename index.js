@@ -92,15 +92,26 @@ io.on('connection', (socket) => {
     // Gestion de l'enregistrement des robots
     socket.on('register', (robotId) => {
         if (robots.has(robotId)) {
-            console.log(`❌ Échec : Un robot avec l'ID ${robotId} est déjà connecté.`);
-            socket.emit('registerError', { error: `Un robot avec l'ID ${robotId} est déjà connecté.` });
-            return;
+            const existingSocketId = robots.get(robotId);
+            
+            if (existingSocketId) {
+                // 🔴 Si un robot avec ce même ID est déjà connecté, on refuse
+                console.log(`❌ Erreur : Un robot avec l'ID ${robotId} est déjà en ligne.`);
+                socket.emit('registerError', { error: `Un robot avec l'ID ${robotId} est déjà connecté.` });
+                return;
+            }
+    
+            // 🔄 Si le robot était hors ligne, on le reconnecte
+            console.log(`🔄 Robot ${robotId} reconnecté.`);
+        } else {
+            console.log(`✅ Nouveau robot ${robotId} enregistré.`);
         }
-
-        robots.set(robotId, socket.id);
-        console.log(`✅ Robot ${robotId} connecté.`);
+        
+        robots.set(robotId, socket.id); // Mise à jour du socket ID
         io.emit('robotConnected', { robotId, status: controllers.has(robotId) ? 'occupé' : 'disponible' });
-    });socket.on('subscribeVideo', (robotId) => {
+    });
+    
+    socket.on('subscribeVideo', (robotId) => {
         if (!robots.has(robotId)) {
             socket.emit('error', { message: `Le robot ${robotId} n'est pas connecté.` });
             return;
@@ -201,55 +212,69 @@ io.on('connection', (socket) => {
             socket.emit('commandError', { error: `Vous n'êtes pas le contrôleur du robot ${robotId}.` });
         }
     });
+
+    socket.on('reconnectRobot', (robotId) => {
+        if (robots.has(robotId) && robots.get(robotId) === null) {
+            robots.set(robotId, socket.id);
+            console.log(`✅ Robot ${robotId} re-connecté.`);
+            io.emit('robotConnected', { robotId, status: controllers.has(robotId) ? 'occupé' : 'disponible' });
+        } else {
+            console.log(`❌ Impossible de reconnecter le robot ${robotId}, il n'était pas enregistré.`);
+            socket.emit('reconnectError', { error: `Le robot ${robotId} n'était pas connu du serveur.` });
+        }
+    });
     
 
     // 📴 Gérer les déconnexions de robots et contrôleurs
     socket.on('disconnect', () => {
-        console.log(`Déconnexion de ${socket.id}`);
-        if (socket.id === adminSocketId) {
-            console.log('🛠️ L\'admin s\'est déconnecté.');
-            adminSocketId = null;
-            io.emit('adminDisconnected');
-        }
-        // Gérer la déconnexion d'un robot
+        console.log(`🔌 Déconnexion de ${socket.id}`);
+    
+        // 🔍 Vérifier si c'est un robot qui se déconnecte
         for (const [robotId, socketId] of robots.entries()) {
             if (socketId === socket.id) {
-                robots.delete(robotId);
-    
-                // 🔥 Vérifier si un contrôleur est assigné
+                // 🛑 Marquer le robot comme hors ligne mais NE PAS l'effacer
+                robots.set(robotId, null);
+                console.log(`🚨 Robot ${robotId} est hors ligne mais conservé en mémoire.`);
+                
+                // 🔔 Notifier le contrôleur s'il y en a un
                 if (controllers.has(robotId)) {
                     const controllerId = controllers.get(robotId);
                     io.to(controllerId).emit('robotDeco', { robotId });
-                    console.log(`🚨 Notification envoyée au contrôleur ${controllerId} : Robot ${robotId} déconnecté.`);
-                    controllers.delete(robotId); // Libérer le contrôleur
-                }
-                if (viewers.has(robotId)) {
-                    viewers.delete(robotId);
-                    console.log(`👥 Tous les abonnés du robot ${robotId} ont été retirés.`);
+                    console.log(`🔴 Notification envoyée au contrôleur ${controllerId} : Robot ${robotId} déconnecté.`);
                 }
     
-                console.log(`Robot ${robotId} déconnecté.`);
-                io.emit('robotDisconnected', { robotId });
+                // 📡 Notifier tous les viewers
+                if (viewers.has(robotId)) {
+                    viewers.get(robotId).forEach(viewerId => {
+                        io.to(viewerId).emit('robotDeco', { robotId });
+                        console.log(`👀 Viewer ${viewerId} informé que le robot ${robotId} est hors ligne.`);
+                    });
+                }
+    
+                // 🛰️ Mettre à jour l'état sur la carte
+                io.emit('statusChange', { robotId, status: 'hors ligne' });
                 break;
             }
         }
     
-        // Gérer la déconnexion d'un contrôleur
+        // 🔍 Vérifier si c'est un contrôleur qui se déconnecte
         for (const [robotId, controllerId] of controllers.entries()) {
             if (controllerId === socket.id) {
                 controllers.delete(robotId);
-                console.log(`Le contrôleur de ${robotId} s'est déconnecté.`);
+                console.log(`🎮 Le contrôleur de ${robotId} s'est déconnecté.`);
                 io.emit('statusChange', { robotId, status: 'disponible' });
                 break;
             }
-        } 
+        }
+    
+        // 🔍 Vérifier si c'est un viewer qui se déconnecte
         for (const [robotId, viewerSet] of viewers.entries()) {
             if (viewerSet.has(socket.id)) {
                 viewerSet.delete(socket.id);
-                console.log(`🚪 ${socket.id} s'est désabonné du flux du robot ${robotId}`);
+                console.log(`👀 Viewer ${socket.id} s'est désabonné du flux du robot ${robotId}`);
             }
         }
-    });
+    });    
 });
 
 server.listen(PORT, () => {
