@@ -92,6 +92,20 @@ app.get('/reset', (req, res) => {
     res.json({ message: 'Serveur réinitialisé' });
 })
 
+setInterval(() => {
+    console.log("🔍 Vérification des robots connectés...");
+    
+    for (const [robotId, socketId] of robots.entries()) {
+        if (!socketId || !io.sockets.sockets.has(socketId)) {
+            console.log(`❌ Robot ${robotId} semble déconnecté.`);
+            // change status dans robots et notifie tout le monde
+            robots.set(robotId, null);
+
+            io.emit('statusChange', { robotId, status: 'hors ligne' });
+        }
+    }
+}, 10000);
+
 // 🚦 Gestion des connexions Socket.IO
 io.on('connection', (socket) => {
     console.log('Un client est connecté: ' + socket.id);
@@ -140,7 +154,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('image', ({ robot_id, image }) => {
-        console.log(`📷 Image reçue du robot ${robot_id}`);
+        //console.log(`📷 Image reçue du robot ${robot_id}`);
         if (!robots.has(robot_id)) return;
 
         const controllerId = controllers.get(robot_id);
@@ -154,7 +168,7 @@ io.on('connection', (socket) => {
         // Envoyer l'image aux viewers abonnés
         robotViewers.forEach(viewerId => {
             io.to(viewerId).emit('image', { robot_id, image });
-            console.log(`📡 Image du robot ${robot_id} envoyée à ${viewerId}`);
+           // console.log(`📡 Image du robot ${robot_id} envoyée à ${viewerId}`);
         });
 
         //console.log(`📡 Flux vidéo du robot ${robot_id} envoyé aux abonnés.`);
@@ -181,6 +195,19 @@ io.on('connection', (socket) => {
         socket.emit('controllerSuccess', { robotId });
         // prevenir tout le monde que le robot est controlé
         io.emit('statusChange', { robotId, status: 'occupé' });
+    });
+
+    socket.on('releaseControl', (robotId) => {
+        console.log(`${socket.id} relâche le contrôle de ${robotId}`);
+        if (controllers.has(robotId) && controllers.get(robotId) === socket.id) {
+            console.log(`${socket.id} relâche le contrôle de ${robotId}`);
+            controllers.delete(robotId);
+            socket.emit('releaseSuccess', { robotId });
+            io.emit('statusChange', { robotId, status: 'disponible' });
+        } else {
+            console.log(`${socket.id} ne peut pas relâcher le contrôle de ${robotId}`);
+            socket.emit('releaseError', { error: `Vous ne contrôlez pas le robot ${robotId}.` });
+        }
     });
 
     // 🔥 Prise de contrôle par l'admin avec déconnexion du contrôleur précédent
@@ -247,7 +274,7 @@ io.on('connection', (socket) => {
                 // 🔔 Notifier le contrôleur s'il y en a un
                 if (controllers.has(robotId)) {
                     const controllerId = controllers.get(robotId);
-                    io.to(controllerId).emit('robotDeco', { robotId });
+                    io.to(controllerId).emit('robotDecoCtrl', { robotId });
                     console.log(`🔴 Notification envoyée au contrôleur ${controllerId} : Robot ${robotId} déconnecté.`);
                 }
     
