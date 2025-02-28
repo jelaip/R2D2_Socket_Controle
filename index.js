@@ -115,21 +115,18 @@ io.on('connection', (socket) => {
     socket.on('register', (robotId) => {
         if (robots.has(robotId)) {
             const existingSocketId = robots.get(robotId);
-            
-            if (existingSocketId) {
-                // 🔴 Si un robot avec ce même ID est déjà connecté, on refuse
-                console.log(`❌ Erreur : Un robot avec l'ID ${robotId} est déjà en ligne.`);
-                socket.emit('registerError', { error: `Un robot avec l'ID ${robotId} est déjà connecté.` });
-                return;
-            }
     
-            // 🔄 Si le robot était hors ligne, on le reconnecte
-            console.log(`🔄 Robot ${robotId} reconnecté.`);
-        } else {
-            console.log(`✅ Nouveau robot ${robotId} enregistré.`);
+            if (existingSocketId && io.sockets.sockets.get(existingSocketId)) {
+                // 🔴 Déconnecte l'ancien socket pour éviter les conflits
+                console.log(`🔄 Remplacement du robot ${robotId} (Ancien socket déconnecté)`);
+                io.sockets.sockets.get(existingSocketId).disconnect(true);
+            }
         }
-        
-        robots.set(robotId, socket.id); // Mise à jour du socket ID
+    
+        // ✅ Enregistrement du nouveau socket ID
+        robots.set(robotId, socket.id);
+        console.log(`✅ Robot ${robotId} connecté avec succès.`);
+    
         io.emit('robotConnected', { robotId, status: controllers.has(robotId) ? 'occupé' : 'disponible' });
     });
     
