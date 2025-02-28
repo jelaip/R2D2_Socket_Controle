@@ -121,17 +121,18 @@ io.on('connection', (socket) => {
         console.log(`🤖 Enregistrement du robot ${robotId}`);
         if (robots.has(robotId)) {
             console.log(` Le robot ${robotId} est déjà enregistré.`);
+            //si controller change status
+            if (controllers.has(robotId))  status.set(robotId, 'occupé');
+            else status.set(robotId, 'disponible');
+
+            io.emit('statusChange', { robotId, status: status.get(robotId) });
             const existingSocketId = robots.get(robotId);
             if (existingSocketId === socket.id) {
                 console.log(`🔄 Robot ${robotId} reconnecté.`);
                 return;
             }
 
-            //si controller change status
-            if (controllers.has(robotId))  status.set(robotId, 'occupé');
-            else status.set(robotId, 'disponible');
-
-    
+            
             if (existingSocketId && io.sockets.sockets.get(existingSocketId)) {
                 // 🔴 Déconnecte l'ancien socket pour éviter les conflits
                 console.log(`🔄 Remplacement du robot ${robotId} (Ancien socket déconnecté)`);
