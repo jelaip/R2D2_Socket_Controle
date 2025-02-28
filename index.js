@@ -4,6 +4,7 @@ import ip from 'ip';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import { stat } from 'fs';
 
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(express.json());
 const secretKey = "supersecretkey"; // Clé secrète pour le token admin
 let adminSocketId = null; // ID du contrôleur admin
 const robots = new Map(); // robotId -> socket.id des robots connectés
+const status = new Map(); // robotId -> status
 const controllers = new Map(); // robotId -> socket.id des contrôleurs assignés
 const viewers = new Map();
 
@@ -72,9 +74,11 @@ function authenticateAdmin(req, res, next) {
 
 // 🔍 Obtenir la liste des robots connectés avec leur statut
 app.get('/robots', (req, res) => {
+
+    
     const robotList = Array.from(robots.keys()).map(robotId => ({
         robotId,
-        status: controllers.has(robotId) ? 'occupé' : 'disponible'
+        status: status.get(robotId) || 'hors ligne',
     }));
     return res.json(robotList);
 });
@@ -100,6 +104,7 @@ setInterval(() => {
             console.log(`❌ Robot ${robotId} semble déconnecté.`);
             // change status dans robots et notifie tout le monde
             robots.set(robotId, null);
+            status.set(robotId, 'hors ligne');
 
             io.emit('statusChange', { robotId, status: 'hors ligne' });
         }
@@ -113,8 +118,19 @@ io.on('connection', (socket) => {
     // Enregistrer un robot et notifier tous les clients
     // Gestion de l'enregistrement des robots
     socket.on('register', (robotId) => {
+        console.log(`🤖 Enregistrement du robot ${robotId}`);
         if (robots.has(robotId)) {
+            console.log(` Le robot ${robotId} est déjà enregistré.`);
             const existingSocketId = robots.get(robotId);
+            if (existingSocketId === socket.id) {
+                console.log(`🔄 Robot ${robotId} reconnecté.`);
+                return;
+            }
+
+            //si controller change status
+            if (controllers.has(robotId))  status.set(robotId, 'occupé');
+            else status.set(robotId, 'disponible');
+
     
             if (existingSocketId && io.sockets.sockets.get(existingSocketId)) {
                 // 🔴 Déconnecte l'ancien socket pour éviter les conflits
@@ -267,7 +283,7 @@ io.on('connection', (socket) => {
                 // 🛑 Marquer le robot comme hors ligne mais NE PAS l'effacer
                 robots.set(robotId, null);
                 console.log(`🚨 Robot ${robotId} est hors ligne mais conservé en mémoire.`);
-                
+                status.set(robotId, 'hors ligne');
                 // 🔔 Notifier le contrôleur s'il y en a un
                 if (controllers.has(robotId)) {
                     const controllerId = controllers.get(robotId);
